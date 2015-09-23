@@ -13,19 +13,17 @@ import (
 	"time"
 )
 
-type Store map[string]interface{}
-
-type DB struct {
+type MockDB struct {
 	FilePath string
-	Stores   map[string]*Store
+	Stores   map[string]*map[string]interface{}
 	Update   bool
 	sync.RWMutex
 }
 
-func NewDB(filepath string, rate int64) *DB {
-	db := &DB{
+func NewMockDB(filepath string, rate int64) *MockDB {
+	db := &MockDB{
 		FilePath: filepath,
-		Stores:   make(map[string]*Store),
+		Stores:   make(map[string]*map[string]interface{}),
 	}
 	db.Load()
 	go db.savesnapshots(rate)
@@ -33,7 +31,7 @@ func NewDB(filepath string, rate int64) *DB {
 	return db
 }
 
-func (db *DB) catchSigInt() {
+func (db *MockDB) catchSigInt() {
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTERM, syscall.SIGKILL, syscall.SIGSTOP)
 	go func() {
@@ -43,7 +41,7 @@ func (db *DB) catchSigInt() {
 	}()
 }
 
-func (db *DB) GetStore(key string) *Store {
+func (db *MockDB) GetStore(key string) *map[string]interface{} {
 	db.RLock()
 	if store, ok := db.Stores[key]; ok {
 		db.RUnlock()
@@ -51,13 +49,13 @@ func (db *DB) GetStore(key string) *Store {
 	}
 	db.RUnlock()
 	db.Lock()
-	db.Stores[key] = &Store{}
+	db.Stores[key] = &map[string]interface{}{}
 	store := db.Stores[key]
 	db.Unlock()
 	return store
 }
 
-func (db *DB) Add(key string, val interface{}) string {
+func (db *MockDB) Add(key string, val interface{}) string {
 	store, uuid := db.GetStore(key), UUID4()
 	db.Lock()
 	(*store)[uuid] = val
@@ -66,7 +64,7 @@ func (db *DB) Add(key string, val interface{}) string {
 	return uuid
 }
 
-func (db *DB) Set(key, fld string, val interface{}) {
+func (db *MockDB) Set(key, fld string, val interface{}) {
 	store := db.GetStore(key)
 	db.Lock()
 	(*store)[fld] = val
@@ -74,13 +72,13 @@ func (db *DB) Set(key, fld string, val interface{}) {
 	db.Unlock()
 }
 
-func (db *DB) GetAllStores(key string) map[string]*Store {
+func (db *MockDB) GetAllStores(key string) map[string]*map[string]interface{} {
 	db.RLock()
 	defer db.RUnlock()
 	return db.Stores
 }
 
-func (db *DB) Get(key, fld string) interface{} {
+func (db *MockDB) Get(key, fld string) interface{} {
 	store := db.GetStore(key)
 	db.RLock()
 	if val, ok := (*store)[fld]; ok {
@@ -90,7 +88,7 @@ func (db *DB) Get(key, fld string) interface{} {
 	db.RUnlock()
 	return nil
 }
-func (db *DB) GetAs(key, fld string, ptr interface{}) bool {
+func (db *MockDB) GetAs(key, fld string, ptr interface{}) bool {
 	store := db.GetStore(key)
 	db.RLock()
 	defer db.RUnlock()
@@ -107,7 +105,7 @@ func (db *DB) GetAs(key, fld string, ptr interface{}) bool {
 	return false
 }
 
-func (db *DB) Del(key, fld string) {
+func (db *MockDB) Del(key, fld string) {
 	store := db.GetStore(key)
 	db.Lock()
 	delete(*store, fld)
@@ -115,14 +113,14 @@ func (db *DB) Del(key, fld string) {
 	db.Unlock()
 }
 
-func (db *DB) DelStore(key string) {
+func (db *MockDB) DelStore(key string) {
 	db.Lock()
 	delete(db.Stores, key)
 	db.Update = true
 	db.Unlock()
 }
 
-func (db *DB) savesnapshots(rate int64) {
+func (db *MockDB) savesnapshots(rate int64) {
 	log.Println("Savesnapshot iterating...")
 	time.AfterFunc(time.Duration(rate)*time.Second, func() {
 		if db.Update {
@@ -135,12 +133,8 @@ func (db *DB) savesnapshots(rate int64) {
 	})
 }
 
-func (db *DB) Save() {
+func (db *MockDB) Save() {
 	log.Println("Saving data to drive...")
-	//path, _ := path.Split(db.FilePath)
-	//if err := os.MkdirAll(path, 0755); err != nil {
-	//	log.Fatal(err)
-	//}
 	fd, err := os.Create(db.FilePath + ".tmp")
 	if err != nil {
 		log.Fatal(err)
@@ -160,7 +154,7 @@ func (db *DB) Save() {
 	log.Println("Finished saving.")
 }
 
-func (db *DB) Load() {
+func (db *MockDB) Load() {
 	log.Println("Loading data off drive...")
 	if _, err := os.Stat(db.FilePath); os.IsNotExist(err) {
 		log.Printf("%q does not exists, attempting to create...\n", db.FilePath)
