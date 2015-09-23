@@ -25,9 +25,11 @@ func NewMockDB(filepath string, rate int64) *MockDB {
 		FilePath: filepath,
 		Stores:   make(map[string]*map[string]interface{}),
 	}
+	db.Lock()
 	db.Load()
-	go db.savesnapshots(rate)
+	db.Unlock()
 	db.catchSigInt()
+	go db.savesnapshots(rate)
 	return db
 }
 
@@ -40,6 +42,30 @@ func (db *MockDB) catchSigInt() {
 		os.Exit(0)
 	}()
 }
+
+func fillPtr(val, ptr interface{}) bool {
+	b, err := json.Marshal(val)
+	if err != nil {
+		return false
+	}
+	if err := json.Unmarshal(b, &ptr); err != nil {
+		return false
+	}
+	return true
+}
+
+/*
+func (db *MockDB) QueryAll(key string, query map[string]interface{}, ptr interface{}) (int, bool) {
+	return 0, false
+}
+
+func (db *MockDB) Query(key string, query map[string]interface{}, ptr interface{}) bool {
+	db.RLock()
+	defer db.RUnlock()
+	store, ok := db.Stores[key]
+	if
+}
+*/
 
 func (db *MockDB) GetStore(key string) *map[string]interface{} {
 	db.RLock()
@@ -127,6 +153,7 @@ func (db *MockDB) savesnapshots(rate int64) {
 			log.Println("Saving snapshot...")
 			db.Lock()
 			db.Save()
+			db.Update = false
 			db.Unlock()
 		}
 		db.savesnapshots(rate)
