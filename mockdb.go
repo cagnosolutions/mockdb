@@ -93,7 +93,7 @@ func (db *MockDB) Add(key string, val interface{}) string {
 func (db *MockDB) Set(key, fld string, val interface{}) {
 	store := db.GetStore(key)
 	db.Lock()
-	(*store)[fld] = val
+	(*store)[fld] = toMap(val)
 	db.Update = true
 	db.Unlock()
 }
@@ -147,10 +147,8 @@ func (db *MockDB) DelStore(key string) {
 }
 
 func (db *MockDB) savesnapshots(rate int64) {
-	log.Println("Savesnapshot iterating...")
 	time.AfterFunc(time.Duration(rate)*time.Second, func() {
 		if db.Update {
-			log.Println("Saving snapshot...")
 			db.Lock()
 			db.Save()
 			db.Update = false
@@ -161,7 +159,6 @@ func (db *MockDB) savesnapshots(rate int64) {
 }
 
 func (db *MockDB) Save() {
-	log.Println("Saving data to drive...")
 	fd, err := os.Create(db.FilePath + ".tmp")
 	if err != nil {
 		log.Fatal(err)
@@ -178,13 +175,10 @@ func (db *MockDB) Save() {
 		log.Fatal(err)
 	}
 	debug.FreeOSMemory()
-	log.Println("Finished saving.")
 }
 
 func (db *MockDB) Load() {
-	log.Println("Loading data off drive...")
 	if _, err := os.Stat(db.FilePath); os.IsNotExist(err) {
-		log.Printf("%q does not exists, attempting to create...\n", db.FilePath)
 		_, err := os.Create(db.FilePath)
 		if err != nil {
 			log.Fatal(err)
@@ -202,7 +196,6 @@ func (db *MockDB) Load() {
 		log.Fatal(err)
 	}
 	debug.FreeOSMemory()
-	log.Println("Finished loading.")
 }
 
 func UUID4() string {
@@ -213,4 +206,17 @@ func UUID4() string {
 	u[8] = (u[8] | 0x80) & 0xbf
 	u[6] = (u[6] | 0x40) & 0x4f
 	return fmt.Sprintf("%x-%x-%x-%x-%x", u[:4], u[4:6], u[6:8], u[8:10], u[10:])
+}
+
+func toMap(v interface{}) map[string]interface{} {
+	b, err := json.Marshal(v)
+	if err != nil {
+		log.Fatal(err)
+	}
+	m := make(map[string]interface{})
+	err = json.Unmarshal(b, &m)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return m
 }
