@@ -46,12 +46,12 @@ func main() {
 		db.Set("users", id, user)
 	*/
 
-	var user User
-	ok := db.Query("users", map[string]interface{}{"Id": 3, "Email": "gregpechiro@gmail.com"}, &user)
+	var user []User
+	n, ok := db.QueryAll("users", map[string]interface{}{"Id": 5, "Active": true}, &user)
 	if !ok {
 		fmt.Println("Woops, couldn't find user!!!")
 	} else {
-		fmt.Println(user)
+		fmt.Printf("Found %d users: %+v\n", n, user)
 	}
 
 	fmt.Println("Sleeping for 10 seconds...")

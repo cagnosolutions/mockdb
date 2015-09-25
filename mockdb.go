@@ -56,6 +56,54 @@ func fillPtr(val, ptr interface{}) bool {
 }
 
 func (db *MockDB) QueryAll(key string, query map[string]interface{}, ptr interface{}) (int, bool) {
+	db.RLock()
+	defer db.RUnlock()
+	// get store, return false if not exists
+	store, ok := db.Stores[key]
+	if !ok {
+		return 0, false
+	}
+	// attempt to marshal query map into json
+	var qry map[string]interface{}
+	if b, err := json.Marshal(query); err == nil {
+		if err := json.Unmarshal(b, &qry); err != nil {
+			log.Fatal(err)
+		}
+	}
+	var matches []interface{}
+	var qryCount int
+	// find internal map in this store
+	for _, value := range *store {
+		// reset query count for every record/row
+		qryCount = len(query)
+		// if we found the internal map...
+		if reflect.TypeOf(value).Kind() == reflect.Map {
+			// range the value map first (type asserting it accordingly)...
+			for recK, recV := range value.(map[string]interface{}) { // iterate "columns" of a single record/row
+				// now range the (hopefully smaller) json converted qry map second...
+				for qryK, qryV := range qry {
+					// check for a match
+					if qryK == recK && qryV == recV {
+						// if match was found, decrement counter
+						qryCount--
+						// if counter is zero...
+						if qryCount == 0 {
+							// append matched value to matches
+							matches = append(matches, value)
+							// found at least 1 match...
+						}
+					} // otherwise keep looping until all queries are finished or matched...
+				}
+			}
+		}
+	}
+	// marshal into pointer and return true
+	if b, err := json.Marshal(matches); err == nil {
+		if err := json.Unmarshal(b, &ptr); err != nil {
+			log.Fatal(err)
+		}
+		return len(matches), true
+	}
 	return 0, false
 }
 
@@ -92,7 +140,7 @@ func (db *MockDB) Query(key string, query map[string]interface{}, ptr interface{
 						// if counter is zero...
 						if qryCount == 0 {
 							// marshal into pointer and return true
-							if b, err := json.Marshal(qry); err == nil {
+							if b, err := json.Marshal(value); err == nil {
 								if err := json.Unmarshal(b, &ptr); err != nil {
 									log.Fatal(err)
 								}
