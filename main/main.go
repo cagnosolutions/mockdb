@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/lab/mockdb"
+	"github.com/cagnosolutions/mockdb"
 )
 
 type User struct {
@@ -16,7 +16,7 @@ type User struct {
 
 func main() {
 
-	db := mockdb.NewDB("backup.json", 5)
+	db := mockdb.NewMockDB("backup.json", 5)
 
 	/*
 		id1 := db.Add("users", User{1, "Scott Cagno", "scottiecagno@gmail.com", true})
@@ -35,14 +35,24 @@ func main() {
 		fmt.Printf("Added user with id: %q\n", id5)
 	*/
 
-	var user User
-	id := "fcf06596-297a-46ca-a09f-e32b2fae6d59"
-	db.GetAs("users", id, &user)
-	fmt.Printf("Got user with id %q from db: %+v...\n", id, user)
+	/*
+		var user User
+		id := "fcf06596-297a-46ca-a09f-e32b2fae6d59"
+		db.GetAs("users", id, &user)
+		fmt.Printf("Got user with id %q from db: %+v...\n", id, user)
 
-	fmt.Printf("Modifying user...")
-	user.Name = "Mario Mario"
-	db.Set("users", id, user)
+		fmt.Printf("Modifying user...")
+		user.Name = "Mario Mario"
+		db.Set("users", id, user)
+	*/
+
+	var user User
+	ok := db.Query("users", map[string]interface{}{"Id": 3, "Email": "gregpechiro@gmail.com"}, &user)
+	if !ok {
+		fmt.Println("Woops, couldn't find user!!!")
+	} else {
+		fmt.Println(user)
+	}
 
 	fmt.Println("Sleeping for 10 seconds...")
 	time.Sleep(time.Duration(10) * time.Second)

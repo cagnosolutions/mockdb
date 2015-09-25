@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"reflect"
 	"runtime/debug"
 	"sync"
 	"syscall"
@@ -54,7 +55,6 @@ func fillPtr(val, ptr interface{}) bool {
 	return true
 }
 
-/*
 func (db *MockDB) QueryAll(key string, query map[string]interface{}, ptr interface{}) (int, bool) {
 	return 0, false
 }
@@ -62,10 +62,50 @@ func (db *MockDB) QueryAll(key string, query map[string]interface{}, ptr interfa
 func (db *MockDB) Query(key string, query map[string]interface{}, ptr interface{}) bool {
 	db.RLock()
 	defer db.RUnlock()
+	// get store, return false if not exists
 	store, ok := db.Stores[key]
-	if
+	if !ok {
+		return false
+	}
+	// attempt to marshal query map into json
+	var qry map[string]interface{}
+	if b, err := json.Marshal(query); err == nil {
+		if err := json.Unmarshal(b, &qry); err != nil {
+			log.Fatal(err)
+		}
+	}
+	var qryCount int
+	// find internal map in this store
+	for _, value := range *store {
+		// reset query count for every record/row
+		qryCount = len(query)
+		// if we found the internal map...
+		if reflect.TypeOf(value).Kind() == reflect.Map {
+			// range the value map first (type asserting it accordingly)...
+			for recK, recV := range value.(map[string]interface{}) { // iterate "columns" of a single record/row
+				// now range the (hopefully smaller) json converted qry map second...
+				for qryK, qryV := range qry {
+					// check for a match
+					if qryK == recK && qryV == recV {
+						// if match was found, decrement counter
+						qryCount--
+						// if counter is zero...
+						if qryCount == 0 {
+							// marshal into pointer and return true
+							if b, err := json.Marshal(qry); err == nil {
+								if err := json.Unmarshal(b, &ptr); err != nil {
+									log.Fatal(err)
+								}
+							}
+							return true
+						}
+					} // otherwise keep looping until all queries are finished or matched...
+				}
+			}
+		}
+	}
+	return false
 }
-*/
 
 func (db *MockDB) GetStore(key string) *map[string]interface{} {
 	db.RLock()
